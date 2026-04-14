@@ -1,0 +1,175 @@
+api_login_check:
+    path: /api/login_check
+    methods: ['POST']
+
+api_login:
+    path: /api/login
+    methods: ['POST']
+    controller: App\Controller\Api\AuthController::login
+
+api_register:
+    path: /api/register
+    methods: ['POST']
+    controller: App\Controller\Api\AuthController::register
+
+api_refresh_token:
+    path: /api/token/refresh
+    methods: ['POST']
+    controller: App\Controller\Api\AuthController::refreshToken
+
+api_me:
+    path: /api/me
+    methods: ['GET']
+    controller: App\Controller\Api\AuthController::me
+
+api_update_profile:
+    path: /api/me
+    methods: ['PUT']
+    controller: App\Controller\Api\AuthController::updateProfile
+
+# Agency routes
+api_agencies:
+    path: /api/agencies
+    methods: ['GET']
+    controller: App\Controller\Api\AgencyController::index
+
+api_agency_show:
+    path: /api/agencies/{id}
+    methods: ['GET']
+    controller: App\Controller\Api\AgencyController::show
+
+api_agency_create:
+    path: /api/agencies
+    methods: ['POST']
+    controller: App\Controller\Api\AgencyController::create
+
+api_agency_update:
+    path: /api/agencies/{id}
+    methods: ['PUT']
+    controller: App\Controller\Api\AgencyController::update
+
+api_agency_delete:
+    path: /api/agencies/{id}
+    methods: ['DELETE']
+    controller: App\Controller\Api\AgencyController::delete
+
+# Trip routes
+api_trips:
+    path: /api/trips
+    methods: ['GET']
+    controller: App\Controller\Api\TripController::index
+
+api_trip_show:
+    path: /api/trips/{id}
+    methods: ['GET']
+    controller: App\Controller\Api\TripController::show
+
+api_trip_create:
+    path: /api/trips
+    methods: ['POST']
+    controller: App\Controller\Api\TripController::create
+
+api_trip_update:
+    path: /api/trips/{id}
+    methods: ['PUT']
+    controller: App\Controller\Api\TripController::update
+
+api_trip_delete:
+    path: /api/trips/{id}
+    methods: ['DELETE']
+    controller: App\Controller\Api\TripController::delete
+
+api_trip_search:
+    path: /api/trips/search
+    methods: ['GET']
+    controller: App\Controller\Api\TripController::search
+
+# Booking routes
+api_bookings:
+    path: /api/bookings
+    methods: ['GET']
+    controller: App\Controller\Api\BookingController::index
+
+api_booking_show:
+    path: /api/bookings/{id}
+    methods: ['GET']
+    controller: App\Controller\Api\BookingController::show
+
+api_booking_create:
+    path: /api/bookings
+    methods: ['POST']
+    controller: App\Controller\Api\BookingController::create
+
+api_booking_cancel:
+    path: /api/bookings/{id}/cancel
+    methods: ['PUT']
+    controller: App\Controller\Api\BookingController::cancel
+
+# Payment routes
+api_payments:
+    path: /api/payments
+    methods: ['GET']
+    controller: App\Controller\Api\PaymentController::index
+
+api_payment_show:
+    path: /api/payments/{id}
+    methods: ['GET']
+    controller: App\Controller\Api\PaymentController::show
+
+api_payment_create:
+    path: /api/payments
+    methods: ['POST']
+    controller: App\Controller\Api\PaymentController::create
+
+api_payment_callback:
+    path: /api/payments/callback
+    methods: ['POST']
+    controller: App\Controller\Api\PaymentController::callback
+
+# Ticket routes
+api_tickets:
+    path: /api/tickets
+    methods: ['GET']
+    controller: App\Controller\Api\TicketController::index
+
+api_ticket_show:
+    path: /api/tickets/{id}
+    methods: ['GET']
+    controller: App\Controller\Api\TicketController::show
+
+api_ticket_scan:
+    path: /api/tickets/{id}/scan
+    methods: ['POST']
+    controller: App\Controller\Api\TicketController::scan
+
+# Notification routes
+api_notifications:
+    path: /api/notifications
+    methods: ['GET']
+    controller: App\Controller\Api\NotificationController::index
+
+api_notification_read:
+    path: /api/notifications/{id}/read
+    methods: ['PUT']
+    controller: App\Controller\Api\NotificationController::markAsRead
+
+api_notifications_read_all:
+    path: /api/notifications/read-all
+    methods: ['PUT']
+    controller: App\Controller\Api\NotificationController::markAllAsRead
+
+# Review routes
+api_reviews:
+    path: /api/reviews
+    methods: ['GET']
+    controller: App\Controller\Api\ReviewController::index
+
+api_review_create:
+    path: /api/reviews
+    methods: ['POST']
+    controller: App\Controller\Api\ReviewController::create
+
+api_reviews_agency:
+    path: /api/reviews/agency/{id}
+    methods: ['GET']
+    controller: App\Controller\Api\ReviewController::byAgency
