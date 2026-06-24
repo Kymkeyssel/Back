@@ -1,0 +1,12 @@
+# see https://symfony.com/doc/current/rate_limiter.html
+framework:
+    rate_limiter:
+        login_limiter:
+            policy: 'sliding_window'
+            limit: 10
+            interval: '15 minutes'
+        
+        registration_limiter:
+            policy: 'sliding_window'
+            limit: 5
+            interval: '1 hour'

@@ -84,6 +84,11 @@ api_trip_search:
     methods: ['GET']
     controller: App\Controller\Api\TripController::search
 
+api_trip_gps:
+    path: /api/trips/{id}/gps
+    methods: ['GET']
+    controller: App\Controller\Api\GpsTrackingController::gps
+
 # Booking routes
 api_bookings:
     path: /api/bookings
@@ -112,7 +117,7 @@ api_payments:
     controller: App\Controller\Api\PaymentController::index
 
 api_payment_show:
-    path: /api/payments/{id}
+    path: /api/payments/{id<\d+>}
     methods: ['GET']
     controller: App\Controller\Api\PaymentController::show
 
@@ -123,7 +128,7 @@ api_payment_create:
 
 api_payment_callback:
     path: /api/payments/callback
-    methods: ['POST']
+    methods: ['GET', 'POST']
     controller: App\Controller\Api\PaymentController::callback
 
 # Ticket routes
@@ -157,6 +162,44 @@ api_notifications_read_all:
     path: /api/notifications/read-all
     methods: ['PUT']
     controller: App\Controller\Api\NotificationController::markAllAsRead
+
+# Admin routes
+api_admin_overview:
+    path: /api/admin/overview
+    methods: ['GET']
+    controller: App\Controller\Api\AdminController::overview
+
+api_admin_users:
+    path: /api/users
+    methods: ['GET']
+    controller: App\Controller\Api\AdminController::users
+
+api_admin_user_toggle:
+    path: /api/users/{id}/toggle-status
+    methods: ['PUT']
+    controller: App\Controller\Api\AdminController::toggleUserStatus
+
+api_admin_agencies_pending:
+    path: /api/agencies/pending
+    methods: ['GET']
+    controller: App\Controller\Api\AdminController::pendingAgencies
+
+api_admin_agency_verify:
+    path: /api/agencies/{id}/verify
+    methods: ['PUT']
+    controller: App\Controller\Api\AdminController::verifyAgency
+
+# Agency bookings
+api_agency_bookings:
+    path: /api/agencies/{id}/bookings
+    methods: ['GET']
+    controller: App\Controller\Api\BookingController::agencyBookings
+
+# Agency payments
+api_agency_payments:
+    path: /api/agencies/{id}/payments
+    methods: ['GET']
+    controller: App\Controller\Api\PaymentController::agencyPayments
 
 # Review routes
 api_reviews:

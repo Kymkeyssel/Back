@@ -175,7 +175,10 @@ class NotificationService
      */
     private function sendPushNotification(User $user, string $title, string $message, array $data = []): void
     {
-        // Get user's FCM tokens (would be stored in user entity)
+        if (!method_exists($user, 'getFcmTokens')) {
+            return;
+        }
+
         $fcmTokens = $user->getFcmTokens() ?? [];
 
         if (!empty($fcmTokens)) {

@@ -47,6 +47,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[Assert\Regex(pattern: '/^\+?[0-9]{10,15}$/', message: 'Invalid phone number format.')]
     private ?string $phone = null;
 
+    #[ORM\Column(length: 20, nullable: true)]
+    #[Assert\Regex(pattern: '/^\+?[0-9]{10,15}$/', message: 'Invalid Orange Money phone format.')]
+    private ?string $orangeMoneyPhone = null;
+
+    #[ORM\Column(length: 20, nullable: true)]
+    #[Assert\Regex(pattern: '/^\+?[0-9]{10,15}$/', message: 'Invalid MTN MoMo phone format.')]
+    private ?string $mtnMoMoPhone = null;
+
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $avatar = null;
 
@@ -64,6 +72,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $lastLoginAt = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $resetToken = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $resetTokenExpiresAt = null;
 
     #[ORM\OneToMany(targetEntity: Booking::class, mappedBy: 'user')]
     private Collection $bookings;
@@ -188,6 +202,28 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
+    public function getOrangeMoneyPhone(): ?string
+    {
+        return $this->orangeMoneyPhone;
+    }
+
+    public function setOrangeMoneyPhone(?string $orangeMoneyPhone): static
+    {
+        $this->orangeMoneyPhone = $orangeMoneyPhone;
+        return $this;
+    }
+
+    public function getMtnMoMoPhone(): ?string
+    {
+        return $this->mtnMoMoPhone;
+    }
+
+    public function setMtnMoMoPhone(?string $mtnMoMoPhone): static
+    {
+        $this->mtnMoMoPhone = $mtnMoMoPhone;
+        return $this;
+    }
+
     public function getAvatar(): ?string
     {
         return $this->avatar;
@@ -251,6 +287,28 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setLastLoginAt(?\DateTimeImmutable $lastLoginAt): static
     {
         $this->lastLoginAt = $lastLoginAt;
+        return $this;
+    }
+
+    public function getResetToken(): ?string
+    {
+        return $this->resetToken;
+    }
+
+    public function setResetToken(?string $resetToken): static
+    {
+        $this->resetToken = $resetToken;
+        return $this;
+    }
+
+    public function getResetTokenExpiresAt(): ?\DateTimeImmutable
+    {
+        return $this->resetTokenExpiresAt;
+    }
+
+    public function setResetTokenExpiresAt(?\DateTimeImmutable $resetTokenExpiresAt): static
+    {
+        $this->resetTokenExpiresAt = $resetTokenExpiresAt;
         return $this;
     }
 

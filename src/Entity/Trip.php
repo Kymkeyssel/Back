@@ -2,12 +2,14 @@
 
 namespace App\Entity;
 
+use App\Domain\TransportScope;
 use App\Repository\TripRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
+use Symfony\Component\Validator\Context\ExecutionContextInterface;
 
 #[ORM\Entity(repositoryClass: TripRepository::class)]
 #[ORM\Table(name: 'trips')]
@@ -73,11 +75,32 @@ class Trip
     #[Assert\Choice(choices: ['scheduled', 'in_progress', 'completed', 'cancelled'], message: 'Invalid status.')]
     private ?string $status = 'scheduled';
 
+    #[ORM\Column(length: 100, nullable: true)]
+    private ?string $boardingPlatform = null;
+
     #[ORM\Column(type: Types::FLOAT, nullable: true)]
     private ?float $distance = null;
 
     #[ORM\Column(nullable: true)]
     private ?int $duration = null;
+
+    #[ORM\Column(type: Types::FLOAT, nullable: true)]
+    private ?float $departureLatitude = null;
+
+    #[ORM\Column(type: Types::FLOAT, nullable: true)]
+    private ?float $departureLongitude = null;
+
+    #[ORM\Column(type: Types::FLOAT, nullable: true)]
+    private ?float $arrivalLatitude = null;
+
+    #[ORM\Column(type: Types::FLOAT, nullable: true)]
+    private ?float $arrivalLongitude = null;
+
+    #[ORM\Column(type: Types::FLOAT, nullable: true)]
+    private ?float $currentLatitude = null;
+
+    #[ORM\Column(type: Types::FLOAT, nullable: true)]
+    private ?float $currentLongitude = null;
 
     #[ORM\OneToMany(targetEntity: Booking::class, mappedBy: 'trip')]
     private Collection $bookings;
@@ -87,6 +110,31 @@ class Trip
 
     #[ORM\Column]
     private ?\DateTimeImmutable $updatedAt = null;
+
+    #[Assert\Callback]
+    public function validateVehicleMatchesOfferType(ExecutionContextInterface $context): void
+    {
+        $mode = $this->transportMode;
+        $vehicle = $this->vehicle;
+        if (null === $mode || null === $vehicle || null === $vehicle->getType() || null === $mode->getCode()) {
+            return;
+        }
+
+        $code = $mode->getCode();
+        $vehicleType = $vehicle->getType();
+
+        if (TransportScope::CARPOOL === $code && TransportScope::CARPOOL_VEHICLE_TYPE !== $vehicleType) {
+            $context->buildViolation('Carpool offers must use a passenger car (vehicle type "car").')
+                ->atPath('vehicle')
+                ->addViolation();
+        }
+
+        if (TransportScope::INTERCITY_BUS === $code && !in_array($vehicleType, TransportScope::INTERCITY_VEHICLE_TYPES, true)) {
+            $context->buildViolation('Scheduled intercity lines must use a bus or minibus.')
+                ->atPath('vehicle')
+                ->addViolation();
+        }
+    }
 
     public function __construct()
     {
@@ -249,6 +297,17 @@ class Trip
         return $this;
     }
 
+    public function getBoardingPlatform(): ?string
+    {
+        return $this->boardingPlatform;
+    }
+
+    public function setBoardingPlatform(?string $boardingPlatform): static
+    {
+        $this->boardingPlatform = $boardingPlatform;
+        return $this;
+    }
+
     public function getDistance(): ?float
     {
         return $this->distance;
@@ -268,6 +327,72 @@ class Trip
     public function setDuration(?int $duration): static
     {
         $this->duration = $duration;
+        return $this;
+    }
+
+    public function getDepartureLatitude(): ?float
+    {
+        return $this->departureLatitude;
+    }
+
+    public function setDepartureLatitude(?float $departureLatitude): static
+    {
+        $this->departureLatitude = $departureLatitude;
+        return $this;
+    }
+
+    public function getDepartureLongitude(): ?float
+    {
+        return $this->departureLongitude;
+    }
+
+    public function setDepartureLongitude(?float $departureLongitude): static
+    {
+        $this->departureLongitude = $departureLongitude;
+        return $this;
+    }
+
+    public function getArrivalLatitude(): ?float
+    {
+        return $this->arrivalLatitude;
+    }
+
+    public function setArrivalLatitude(?float $arrivalLatitude): static
+    {
+        $this->arrivalLatitude = $arrivalLatitude;
+        return $this;
+    }
+
+    public function getArrivalLongitude(): ?float
+    {
+        return $this->arrivalLongitude;
+    }
+
+    public function setArrivalLongitude(?float $arrivalLongitude): static
+    {
+        $this->arrivalLongitude = $arrivalLongitude;
+        return $this;
+    }
+
+    public function getCurrentLatitude(): ?float
+    {
+        return $this->currentLatitude;
+    }
+
+    public function setCurrentLatitude(?float $currentLatitude): static
+    {
+        $this->currentLatitude = $currentLatitude;
+        return $this;
+    }
+
+    public function getCurrentLongitude(): ?float
+    {
+        return $this->currentLongitude;
+    }
+
+    public function setCurrentLongitude(?float $currentLongitude): static
+    {
+        $this->currentLongitude = $currentLongitude;
         return $this;
     }
 

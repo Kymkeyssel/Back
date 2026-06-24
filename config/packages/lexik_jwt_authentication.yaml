@@ -11,7 +11,8 @@ lexik_jwt_authentication:
             prefix: Bearer
             name: Authorization
         cookie:
-            enabled: false
+            enabled: true
+            name: one4all_token
         query_parameter:
             enabled: false
 
@@ -20,4 +21,4 @@ lexik_jwt_authentication:
     encoder:
         service: lexik_jwt_authentication.encoder.lcobucci
 
-    remove_token_from_body_when_cookies_used: false
+    remove_token_from_body_when_cookies_used: true

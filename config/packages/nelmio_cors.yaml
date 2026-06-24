@@ -1,15 +1,16 @@
 nelmio_cors:
     defaults:
         origin_regex: true
-        allow_origin: ['*']
-        allow_methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-        allow_headers: ['Content-Type', 'Authorization', 'X-Requested-With']
-        expose_headers: []
+        allow_origin: ['^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$']
+        allow_methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH']
+        allow_headers: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-CSRF-Token']
+        expose_headers: ['Link']
         max_age: 3600
-        hosts: []
+        allow_credentials: true
     paths:
         '^/api/':
-            allow_origin: ['*']
-            allow_methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-            allow_headers: ['Content-Type', 'Authorization', 'X-Requested-With']
+            allow_origin: ['^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$']
+            allow_methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH']
+            allow_headers: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-CSRF-Token']
+            allow_credentials: true
             max_age: 3600

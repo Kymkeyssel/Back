@@ -2,6 +2,7 @@
 
 namespace App\Controller\Api;
 
+use App\Entity\Agency;
 use App\Entity\Booking;
 use App\Repository\BookingRepository;
 use App\Repository\TripRepository;
@@ -35,7 +36,9 @@ class BookingController extends AbstractController
             ], Response::HTTP_UNAUTHORIZED);
         }
 
-        $bookings = $this->bookingRepository->findByUser($user->getId());
+        $bookings = $this->isGranted('ROLE_ADMIN')
+            ? $this->bookingRepository->findAllRecent()
+            : $this->bookingRepository->findByUser($user->getId());
 
         $data = [];
         foreach ($bookings as $booking) {
@@ -70,7 +73,7 @@ class BookingController extends AbstractController
         }
 
         // Check ownership
-        if ($booking->getUser() !== $user && !in_array('ROLE_ADMIN', $user->getRoles())) {
+        if ($booking->getUser() !== $user && !$this->isGranted('ROLE_ADMIN')) {
             return $this->json([
                 'success' => false,
                 'message' => 'You do not have permission to view this booking.'
@@ -192,7 +195,7 @@ class BookingController extends AbstractController
         }
 
         // Check ownership
-        if ($booking->getUser() !== $user && !in_array('ROLE_ADMIN', $user->getRoles())) {
+        if ($booking->getUser() !== $user && !$this->isGranted('ROLE_ADMIN')) {
             return $this->json([
                 'success' => false,
                 'message' => 'You do not have permission to cancel this booking.'
@@ -230,6 +233,32 @@ class BookingController extends AbstractController
             'message' => 'Booking cancelled successfully.',
             'data' => $this->serializeBooking($booking)
         ]);
+    }
+
+    #[Route('/api/agencies/{id}/bookings', name: 'api_agency_bookings_list', methods: ['GET'])]
+    public function agencyBookings(int $id): JsonResponse
+    {
+        $user = $this->getUser();
+        if (!$user) {
+            return $this->json(['success' => false, 'message' => 'Authentication required.'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        $agency = $this->entityManager->getRepository(\App\Entity\Agency::class)->find($id);
+        if (!$agency) {
+            return $this->json(['success' => false, 'message' => 'Agency not found.'], Response::HTTP_NOT_FOUND);
+        }
+
+        if ($agency->getOwner() !== $user && !$this->isGranted('ROLE_ADMIN')) {
+            return $this->json(['success' => false, 'message' => 'Access denied.'], Response::HTTP_FORBIDDEN);
+        }
+
+        $bookings = $this->bookingRepository->findByAgency($id);
+        $data = [];
+        foreach ($bookings as $booking) {
+            $data[] = $this->serializeBooking($booking);
+        }
+
+        return $this->json(['success' => true, 'data' => $data]);
     }
 
     private function serializeBooking(Booking $booking): array

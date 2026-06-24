@@ -2,6 +2,7 @@
 
 namespace App\Repository;
 
+use App\Domain\TransportScope;
 use App\Entity\TransportMode;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -32,6 +33,23 @@ class TransportModeRepository extends ServiceEntityRepository
         if ($flush) {
             $this->getEntityManager()->flush();
         }
+    }
+
+    /**
+     * Modes d'offre gérés par la plateforme : bus interurbain et covoiturage uniquement.
+     *
+     * @return TransportMode[]
+     */
+    public function findProductOfferModes(): array
+    {
+        return $this->createQueryBuilder('t')
+            ->andWhere('t.code IN (:codes)')
+            ->andWhere('t.isActive = :active')
+            ->setParameter('codes', TransportScope::OFFER_TYPE_CODES)
+            ->setParameter('active', true)
+            ->orderBy('t.sortOrder', 'ASC')
+            ->getQuery()
+            ->getResult();
     }
 
     /**

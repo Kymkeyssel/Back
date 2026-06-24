@@ -1,0 +1,56 @@
+# Ewondo Translations - TransCam (Boulou)
+
+## Application
+app.name: TransCam
+app.tagline: Ndooyong a TransCam
+app.description: Ntsamey a minala bane
+
+## Navigation
+nav.home: Ndo
+nav.search: Pongui
+nav.bookings: Ayenga ane
+nav.agencies: Biyanga
+nav.contact: Ndek
+nav.login: Yinui
+nav.register: Kounui
+nav.logout: Ndjoui
+nav.profile: Ngwan
+nav.dashboard: Ndo kwabe
+
+## Authentication
+auth.login.title: Yinui
+auth.login.email: Email
+auth.login.password: Nlem
+auth.login.remember: Yi ngwan
+auth.login.submit: Yinui
+auth.register.title: Kounui
+auth.register.firstname: Yi a ngwan
+auth.register.lastname: E ngwan
+auth.register.phone: Telephone
+auth.register.submit: Kounui
+
+## Trip Search
+search.title: Pongui ayenda
+search.from: Nka
+search.to: Koum
+search.date: Nan
+search.passengers: Bapamegi
+search.submit: Pongui
+
+## Booking
+booking.title: Ayenga
+booking.reference: Reference
+booking.status.pending: Nde
+booking.status.confirmed: Nse
+booking.status.cancelled: Nda
+booking.status.completed: Ndo
+
+## Payment
+payment.title: Nliri
+payment.mtn: MTN
+payment.orange: Orange
+payment.card: Carte
+
+## Errors
+error.required: Nne aye
+error.email: Email aye

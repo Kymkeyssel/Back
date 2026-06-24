@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Domain\TransportScope;
 use App\Repository\VehicleRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
@@ -23,9 +24,13 @@ class Vehicle
     #[ORM\JoinColumn(nullable: false)]
     private ?Agency $agency = null;
 
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $driver = null;
+
     #[ORM\Column(length: 50)]
     #[Assert\NotBlank(message: 'Vehicle type is required.')]
-    #[Assert\Choice(choices: ['bus', 'minibus', 'sedan', 'suv'], message: 'Invalid vehicle type.')]
+    #[Assert\Choice(choices: TransportScope::ALL_VEHICLE_TYPES, message: 'Invalid vehicle type: use bus or minibus for scheduled lines, car for carpool.')]
     private ?string $type = null;
 
     #[ORM\Column(length: 100)]
@@ -47,6 +52,9 @@ class Vehicle
 
     #[ORM\Column(type: Types::JSON)]
     private array $amenities = [];
+
+    #[ORM\Column(type: Types::JSON, nullable: true)]
+    private ?array $seatLayout = null;
 
     #[ORM\Column]
     private ?bool $isElectric = false;
@@ -92,6 +100,17 @@ class Vehicle
     public function setAgency(?Agency $agency): static
     {
         $this->agency = $agency;
+        return $this;
+    }
+
+    public function getDriver(): ?User
+    {
+        return $this->driver;
+    }
+
+    public function setDriver(?User $driver): static
+    {
+        $this->driver = $driver;
         return $this;
     }
 
@@ -158,6 +177,17 @@ class Vehicle
     public function setAmenities(array $amenities): static
     {
         $this->amenities = $amenities;
+        return $this;
+    }
+
+    public function getSeatLayout(): ?array
+    {
+        return $this->seatLayout;
+    }
+
+    public function setSeatLayout(?array $seatLayout): static
+    {
+        $this->seatLayout = $seatLayout;
         return $this;
     }
 

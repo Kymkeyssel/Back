@@ -4,6 +4,8 @@ namespace App\Controller\Api;
 
 use App\Entity\Trip;
 use App\Repository\AgencyRepository;
+use App\Repository\BookingRepository;
+use App\Repository\TransportModeRepository;
 use App\Repository\TripRepository;
 use App\Repository\VehicleRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -21,6 +23,8 @@ class TripController extends AbstractController
         private TripRepository $tripRepository,
         private AgencyRepository $agencyRepository,
         private VehicleRepository $vehicleRepository,
+        private TransportModeRepository $transportModeRepository,
+        private BookingRepository $bookingRepository,
         private ValidatorInterface $validator
     ) {
     }
@@ -72,12 +76,104 @@ class TripController extends AbstractController
         ]);
     }
 
+    #[Route('/api/trips/{id}/seats', name: 'api_trip_seats', methods: ['GET'])]
+    public function seats(int $id): JsonResponse
+    {
+        $trip = $this->tripRepository->find($id);
+
+        if (!$trip) {
+            return $this->json([
+                'success' => false,
+                'message' => 'Trip not found.'
+            ], Response::HTTP_NOT_FOUND);
+        }
+
+        $occupied = [];
+        foreach ($this->bookingRepository->findByTrip($id) as $booking) {
+            foreach ($booking->getSeatNumbers() as $label) {
+                if (is_string($label) && $label !== '') {
+                    $occupied[strtoupper($label)] = true;
+                }
+            }
+        }
+
+        $total = max(1, $trip->getTotalSeats());
+        $cols = 4;
+        $rows = (int) ceil($total / $cols);
+        $rowLetters = range('A', 'Z');
+        $cells = [];
+
+        for ($r = 0; $r < $rows; ++$r) {
+            for ($c = 0; $c < $cols; ++$c) {
+                $idx = $r * $cols + $c + 1;
+                if ($idx > $total) {
+                    break 2;
+                }
+                $label = ($rowLetters[$r] ?? 'Z') . ($c + 1);
+                $key = strtoupper($label);
+                $cells[] = [
+                    'id' => $label,
+                    'row' => $r,
+                    'col' => $c,
+                    'available' => !isset($occupied[$key]),
+                ];
+            }
+        }
+
+        return $this->json([
+            'success' => true,
+            'data' => [
+                'tripId' => $trip->getId(),
+                'rows' => $rows,
+                'colsPerRow' => $cols,
+                'aisleAfterColumn' => 2,
+                'cells' => $cells,
+            ],
+        ]);
+    }
+
+    #[Route('/api/trips/{id}/tracking', name: 'api_trip_tracking', methods: ['GET'])]
+    public function tracking(int $id): JsonResponse
+    {
+        $trip = $this->tripRepository->find($id);
+
+        if (!$trip) {
+            return $this->json([
+                'success' => false,
+                'message' => 'Trip not found.'
+            ], Response::HTTP_NOT_FOUND);
+        }
+
+        $lat = $trip->getCurrentLatitude();
+        $lng = $trip->getCurrentLongitude();
+
+        if ($lat === null || $lng === null) {
+            $lat = $trip->getAgency()->getLatitude() ?? 4.0511;
+            $lng = $trip->getAgency()->getLongitude() ?? 9.7679;
+        }
+
+        return $this->json([
+            'success' => true,
+            'data' => [
+                'tripId' => $trip->getId(),
+                'latitude' => $lat,
+                'longitude' => $lng,
+                'status' => $trip->getStatus(),
+                'departureCity' => $trip->getDepartureCity(),
+                'arrivalCity' => $trip->getArrivalCity(),
+                'departureTime' => $trip->getDepartureTime()->format('Y-m-d H:i:s'),
+                'updatedAt' => $trip->getUpdatedAt()->format('Y-m-d H:i:s'),
+            ],
+        ]);
+    }
+
     #[Route('/api/trips/search', name: 'api_trip_search', methods: ['GET'])]
     public function search(Request $request): JsonResponse
     {
         $departureCity = $request->query->get('departureCity');
         $arrivalCity = $request->query->get('arrivalCity');
         $date = $request->query->get('date');
+        $transportModeCode = $request->query->get('transportModeCode');
 
         if (!$departureCity || !$arrivalCity || !$date) {
             return $this->json([
@@ -94,7 +190,7 @@ class TripController extends AbstractController
             ], Response::HTTP_BAD_REQUEST);
         }
 
-        $trips = $this->tripRepository->searchTrips($departureCity, $arrivalCity, $dateObj);
+        $trips = $this->tripRepository->searchTrips($departureCity, $arrivalCity, $dateObj, is_string($transportModeCode) ? $transportModeCode : null);
 
         $data = [];
         foreach ($trips as $trip) {
@@ -108,6 +204,7 @@ class TripController extends AbstractController
                 'departureCity' => $departureCity,
                 'arrivalCity' => $arrivalCity,
                 'date' => $date,
+                'transportModeCode' => is_string($transportModeCode) ? $transportModeCode : null,
                 'total' => count($data)
             ]
         ]);
@@ -128,7 +225,7 @@ class TripController extends AbstractController
         $data = json_decode($request->getContent(), true);
 
         // Validate required fields
-        $requiredFields = ['agencyId', 'vehicleId', 'departureCity', 'arrivalCity', 'departureAddress', 'arrivalAddress', 'departureTime', 'price', 'totalSeats'];
+        $requiredFields = ['agencyId', 'vehicleId', 'transportModeId', 'departureCity', 'arrivalCity', 'departureAddress', 'arrivalAddress', 'departureTime', 'price', 'totalSeats'];
         foreach ($requiredFields as $field) {
             if (!isset($data[$field]) || empty($data[$field])) {
                 return $this->json([
@@ -148,11 +245,20 @@ class TripController extends AbstractController
         }
 
         // Check ownership
-        if ($agency->getOwner() !== $user && !in_array('ROLE_ADMIN', $user->getRoles())) {
+        if ($agency->getOwner() !== $user && !$this->isGranted('ROLE_ADMIN')) {
             return $this->json([
                 'success' => false,
                 'message' => 'You do not have permission to create trips for this agency.'
             ], Response::HTTP_FORBIDDEN);
+        }
+
+        // Get transport mode (intercity bus or carpool only)
+        $transportMode = $this->transportModeRepository->find($data['transportModeId']);
+        if (!$transportMode) {
+            return $this->json([
+                'success' => false,
+                'message' => 'Transport mode not found.'
+            ], Response::HTTP_NOT_FOUND);
         }
 
         // Get vehicle
@@ -168,6 +274,7 @@ class TripController extends AbstractController
         $trip = new Trip();
         $trip->setAgency($agency);
         $trip->setVehicle($vehicle);
+        $trip->setTransportMode($transportMode);
         $trip->setDepartureCity($data['departureCity']);
         $trip->setArrivalCity($data['arrivalCity']);
         $trip->setDepartureAddress($data['departureAddress']);
@@ -179,6 +286,7 @@ class TripController extends AbstractController
         $trip->setAvailableSeats($data['totalSeats']);
         $trip->setDistance($data['distance'] ?? null);
         $trip->setDuration($data['duration'] ?? null);
+        $trip->setBoardingPlatform($data['boardingPlatform'] ?? null);
 
         // Validate
         $errors = $this->validator->validate($trip);
@@ -227,7 +335,7 @@ class TripController extends AbstractController
         }
 
         // Check ownership
-        if ($trip->getAgency()->getOwner() !== $user && !in_array('ROLE_ADMIN', $user->getRoles())) {
+        if ($trip->getAgency()->getOwner() !== $user && !$this->isGranted('ROLE_ADMIN')) {
             return $this->json([
                 'success' => false,
                 'message' => 'You do not have permission to update this trip.'
@@ -261,8 +369,18 @@ class TripController extends AbstractController
         if (isset($data['status'])) {
             $trip->setStatus($data['status']);
         }
-
-        // Validate
+        if (isset($data['transportModeId'])) {
+            $mode = $this->transportModeRepository->find($data['transportModeId']);
+            if ($mode) {
+                $trip->setTransportMode($mode);
+            }
+        }
+        if (isset($data['vehicleId'])) {
+            $vehicle = $this->vehicleRepository->find($data['vehicleId']);
+            if ($vehicle) {
+                $trip->setVehicle($vehicle);
+            }
+        }
         $errors = $this->validator->validate($trip);
         if (count($errors) > 0) {
             $errorMessages = [];
@@ -308,7 +426,7 @@ class TripController extends AbstractController
         }
 
         // Check ownership
-        if ($trip->getAgency()->getOwner() !== $user && !in_array('ROLE_ADMIN', $user->getRoles())) {
+        if ($trip->getAgency()->getOwner() !== $user && !$this->isGranted('ROLE_ADMIN')) {
             return $this->json([
                 'success' => false,
                 'message' => 'You do not have permission to delete this trip.'
@@ -325,6 +443,51 @@ class TripController extends AbstractController
         ]);
     }
 
+    #[Route('/api/trips/best-prices', name: 'api_trip_best_prices', methods: ['GET'])]
+    public function bestPrices(Request $request): JsonResponse
+    {
+        $mode = $request->query->get('mode', 'bus');
+
+        try {
+            $modeCode = match ($mode) {
+                'carpool', 'covoiturage' => \App\Domain\TransportScope::CARPOOL,
+                default => \App\Domain\TransportScope::INTERCITY_BUS,
+            };
+        } catch (\UnhandledMatchError) {
+            $modeCode = \App\Domain\TransportScope::INTERCITY_BUS;
+        }
+
+        $trips = $this->tripRepository->findBestPricesByMode($modeCode, 9);
+
+        $data = [];
+        foreach ($trips as $trip) {
+            $data[] = $this->serializeTrip($trip);
+        }
+
+        return $this->json([
+            'success' => true,
+            'data' => $data,
+            'meta' => ['mode' => $mode, 'total' => count($data)]
+        ]);
+    }
+
+    #[Route('/api/trips/carpool', name: 'api_trip_carpool', methods: ['GET'])]
+    public function carpoolTrips(): JsonResponse
+    {
+        $trips = $this->tripRepository->findCarpoolTrips();
+
+        $data = [];
+        foreach ($trips as $trip) {
+            $data[] = $this->serializeTrip($trip);
+        }
+
+        return $this->json([
+            'success' => true,
+            'data' => $data,
+            'meta' => ['total' => count($data)]
+        ]);
+    }
+
     private function serializeTrip(Trip $trip): array
     {
         return [
@@ -334,12 +497,22 @@ class TripController extends AbstractController
                 'name' => $trip->getAgency()->getName(),
                 'slug' => $trip->getAgency()->getSlug(),
             ],
-            'vehicle' => [
+            'vehicle' => array_filter([
                 'id' => $trip->getVehicle()->getId(),
                 'type' => $trip->getVehicle()->getType(),
                 'brand' => $trip->getVehicle()->getBrand(),
                 'model' => $trip->getVehicle()->getModel(),
                 'totalSeats' => $trip->getVehicle()->getTotalSeats(),
+                'seatLayout' => $trip->getVehicle()->getSeatLayout(),
+                'driver' => $trip->getVehicle()->getDriver() ? [
+                    'id' => $trip->getVehicle()->getDriver()->getId(),
+                    'fullName' => $trip->getVehicle()->getDriver()->getFullName(),
+                ] : null,
+            ], fn ($v) => $v !== null),
+            'transportMode' => [
+                'id' => $trip->getTransportMode()->getId(),
+                'code' => $trip->getTransportMode()->getCode(),
+                'name' => $trip->getTransportMode()->getName(),
             ],
             'departureCity' => $trip->getDepartureCity(),
             'arrivalCity' => $trip->getArrivalCity(),
@@ -350,9 +523,16 @@ class TripController extends AbstractController
             'price' => $trip->getPrice(),
             'availableSeats' => $trip->getAvailableSeats(),
             'totalSeats' => $trip->getTotalSeats(),
+            'boardingPlatform' => $trip->getBoardingPlatform(),
             'status' => $trip->getStatus(),
             'distance' => $trip->getDistance(),
             'duration' => $trip->getDuration(),
+            'departureLatitude' => $trip->getDepartureLatitude(),
+            'departureLongitude' => $trip->getDepartureLongitude(),
+            'arrivalLatitude' => $trip->getArrivalLatitude(),
+            'arrivalLongitude' => $trip->getArrivalLongitude(),
+            'currentLatitude' => $trip->getCurrentLatitude(),
+            'currentLongitude' => $trip->getCurrentLongitude(),
             'createdAt' => $trip->getCreatedAt()->format('Y-m-d H:i:s'),
             'updatedAt' => $trip->getUpdatedAt()->format('Y-m-d H:i:s'),
         ];

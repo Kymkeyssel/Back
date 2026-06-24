@@ -159,7 +159,7 @@ class AgencyController extends AbstractController
         }
 
         // Check ownership
-        if ($agency->getOwner() !== $user && !in_array('ROLE_ADMIN', $user->getRoles())) {
+        if ($agency->getOwner() !== $user && !$this->isGranted('ROLE_ADMIN')) {
             return $this->json([
                 'success' => false,
                 'message' => 'You do not have permission to update this agency.'
@@ -244,7 +244,7 @@ class AgencyController extends AbstractController
         }
 
         // Check ownership
-        if ($agency->getOwner() !== $user && !in_array('ROLE_ADMIN', $user->getRoles())) {
+        if ($agency->getOwner() !== $user && !$this->isGranted('ROLE_ADMIN')) {
             return $this->json([
                 'success' => false,
                 'message' => 'You do not have permission to delete this agency.'

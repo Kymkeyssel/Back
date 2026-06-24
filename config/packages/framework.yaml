@@ -1,9 +1,20 @@
 # see https://symfony.com/doc/current/reference/configuration/framework.html
 framework:
     secret: '%env(APP_SECRET)%'
+    csrf_protection: true
     annotations: false
     http_method_override: false
     handle_all_throwables: true
+
+    rate_limiter:
+        login_limiter:
+            policy: 'token_bucket'
+            limit: 10
+            rate: { amount: 1, interval: '15 minutes' }
+        registration_limiter:
+            policy: 'token_bucket'
+            limit: 5
+            rate: { amount: 1, interval: '1 hour' }
 
     # Enables session support. Note that the session will ONLY be started if you read or write from it.
     # Remove or comment this section to explicitly disable session support.

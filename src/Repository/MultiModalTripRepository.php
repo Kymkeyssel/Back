@@ -41,7 +41,8 @@ class MultiModalTripRepository extends ServiceEntityRepository
     public function findByUser(int $userId): array
     {
         return $this->createQueryBuilder('mmt')
-            ->andWhere('mmt.user = :userId')
+            ->innerJoin('mmt.user', 'u')
+            ->andWhere('u.id = :userId')
             ->setParameter('userId', $userId)
             ->orderBy('mmt.createdAt', 'DESC')
             ->getQuery()

@@ -3,6 +3,7 @@
 namespace App\Service;
 
 use App\Entity\MultiModalTrip;
+use App\Entity\User;
 use App\Entity\MultiModalTripSegment;
 use App\Entity\TransportMode;
 use App\Entity\Trip;
@@ -11,9 +12,11 @@ use App\Repository\MultiModalTripSegmentRepository;
 use App\Repository\TransportModeRepository;
 use App\Repository\TripRepository;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Component\HttpClient\HttpClientInterface;
-use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 
+/**
+ * Planifie des trajets avec correspondances en ne considérant que des segments
+ * « bus interurbain » et « covoiturage » (aucun taxi, fret, ferry, etc.).
+ */
 class MultiModalTripService
 {
     public function __construct(
@@ -21,9 +24,7 @@ class MultiModalTripService
         private MultiModalTripRepository $multiModalTripRepository,
         private MultiModalTripSegmentRepository $segmentRepository,
         private TransportModeRepository $transportModeRepository,
-        private TripRepository $tripRepository,
-        private HttpClientInterface $httpClient,
-        private string $googleMapsApiKey = ''
+        private TripRepository $tripRepository
     ) {
     }
 
@@ -31,14 +32,14 @@ class MultiModalTripService
      * Plan a multi-modal trip
      */
     public function planTrip(
-        int $userId,
+        User $user,
         string $departureCity,
         string $arrivalCity,
         \DateTimeImmutable $departureTime,
         array $preferences = []
     ): MultiModalTrip {
         $multiModalTrip = new MultiModalTrip();
-        $multiModalTrip->setUserId($userId);
+        $multiModalTrip->setUser($user);
         $multiModalTrip->setDepartureCity($departureCity);
         $multiModalTrip->setArrivalCity($arrivalCity);
         $multiModalTrip->setDepartureTime($departureTime);
@@ -253,11 +254,13 @@ class MultiModalTripService
     }
 
     /**
-     * Get available transport modes
+     * Modes d'offre exposés par la plateforme (bus interurbain, covoiturage).
+     *
+     * @return TransportMode[]
      */
     public function getAvailableTransportModes(): array
     {
-        return $this->transportModeRepository->findAll();
+        return $this->transportModeRepository->findProductOfferModes();
     }
 
     /**

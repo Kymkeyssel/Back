@@ -1,0 +1,154 @@
+# English Translations - TransCam
+
+## Application
+app.name: TransCam
+app.tagline: Your transport partner in Cameroon
+app.description: Land transport booking platform
+
+## Navigation
+nav.home: Home
+nav.search: Search
+nav.bookings: My Bookings
+nav.agencies: Agencies
+nav.contact: Contact
+nav.login: Login
+nav.register: Register
+nav.logout: Logout
+nav.profile: My Profile
+nav.dashboard: Dashboard
+
+## Authentication
+auth.login.title: Login
+auth.login.email: Email address
+auth.login.password: Password
+auth.login.remember: Remember me
+auth.login.submit: Sign in
+auth.login.forgot: Forgot password?
+auth.register.title: Create an account
+auth.register.firstname: First name
+auth.register.lastname: Last name
+auth.register.phone: Phone
+auth.register.submit: Sign up
+auth.register.already: Already have an account?
+auth.logout.success: Logout successful
+
+## Trip Search
+search.title: Find your trip
+search.from: From
+search.to: To
+search.date: Date
+search.passengers: Passengers
+search.submit: Search
+search.no_results: No trips found
+search.results: "{count} trips found"
+
+## Booking
+booking.title: Booking
+booking.reference: Reference
+booking.status.pending: Pending
+booking.status.confirmed: Confirmed
+booking.status.cancelled: Cancelled
+booking.status.completed: Completed
+booking.seats: Reserved seats
+booking.passengers: Passengers
+booking.total: Total
+booking.confirm: Confirm booking
+booking.cancel: Cancel booking
+booking.cancel.confirm: Are you sure you want to cancel?
+booking.success: Booking created successfully
+booking.cancelled: Booking cancelled
+
+## Tickets
+ticket.title: My ticket
+ticket.qr_code: QR Code
+ticket.scan: Scan ticket
+ticket.valid: Valid
+ticket.used: Used
+ticket.expired: Expired
+ticket.cancelled: Cancelled
+
+## Payment
+payment.title: Payment
+payment.method: Payment method
+payment.mtn: MTN Mobile Money
+payment.orange: Orange Money
+payment.card: Bank card
+payment.amount: Amount
+payment.submit: Pay
+payment.success: Payment successful
+payment.failed: Payment failed
+payment.pending: Payment pending
+
+## Notifications
+notification.title: Notifications
+notification.new: New notification
+notification.booking: Booking
+notification.payment: Payment
+notification.trip: Trip
+notification.promotion: Promotion
+notification.system: System
+notification.mark_read: Mark as read
+notification.mark_all_read: Mark all as read
+notification.empty: No notifications
+
+## Agency
+agency.title: Agency
+agency.name: Agency name
+agency.description: Description
+agency.phone: Phone
+agency.email: Email
+agency.address: Address
+agency.city: City
+agency.rating: Rating
+agency.reviews: reviews
+agency.verified: Verified
+agency.register: Create an agency
+
+## Trip
+trip.title: Trip
+trip.from: From
+trip.to: To
+trip.departure: Departure time
+trip.arrival: Arrival time
+trip.price: Price
+trip.available_seats: Available seats
+trip.total_seats: Total seats
+trip.duration: Duration
+trip.distance: Distance
+trip.status.scheduled: Scheduled
+trip.status.in_progress: In progress
+trip.status.completed: Completed
+trip.status.cancelled: Cancelled
+
+## Traveler
+traveler.name: Passenger name
+traveler.phone: Phone
+traveler.email: Email
+traveler.add: Add passenger
+traveler.remove: Remove
+
+## Errors
+error.required: This field is required
+error.email: Invalid email
+error.phone: Invalid phone number
+error.password: Password must be at least 8 characters
+error.generic: An error occurred
+
+## Buttons
+button.submit: Submit
+button.cancel: Cancel
+button.save: Save
+button.delete: Delete
+button.edit: Edit
+button.back: Back
+button.next: Next
+button.previous: Previous
+button.close: Close
+
+## Dates
+date.today: Today
+date.tomorrow: Tomorrow
+date.yesterday: Yesterday
+date.days: days
+date.hours: hours
+date.minutes: minutes

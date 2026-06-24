@@ -4,6 +4,15 @@
 # Put parameters here that don't need to change on each machine where the app is deployed
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
+    mtn_momo.api_key: '%env(MTN_MOMO_API_KEY)%'
+    mtn_momo.api_secret: '%env(MTN_MOMO_API_SECRET)%'
+    mtn_momo.subscription_key: '%env(MTN_MOMO_SUBSCRIPTION_KEY)%'
+    orange_money.api_key: '%env(ORANGE_MONEY_API_KEY)%'
+    orange_money.api_secret: '%env(ORANGE_MONEY_API_SECRET)%'
+    orange_money.merchant_key: '%env(ORANGE_MONEY_MERCHANT_KEY)%'
+    stripe.secret_key: '%env(STRIPE_SECRET_KEY)%'
+    stripe.public_key: '%env(STRIPE_PUBLIC_KEY)%'
+    notchpay.callback_url: '%env(NOTCHPAY_CALLBACK_URL)%'
 
 services:
     # default configuration for services in *this* file
@@ -20,5 +29,37 @@ services:
             - '../src/Entity/'
             - '../src/Kernel.php'
 
-    # add more service definitions when explicit configuration is needed
-    # please note that last definitions always *replace* previous ones
+    # Rate limiter service configuration for AuthController
+    App\Controller\Api\AuthController:
+        arguments:
+            $loginLimiter: '@limiter.login_limiter'
+            $registrationLimiter: '@limiter.registration_limiter'
+
+    # Payment Services Configuration
+    App\Service\Payment\MTNMoMoService:
+        arguments:
+            $apiKey: '%mtn_momo.api_key%'
+            $apiSecret: '%mtn_momo.api_secret%'
+            $subscriptionKey: '%mtn_momo.subscription_key%'
+
+    App\Service\Payment\OrangeMoneyService:
+        arguments:
+            $apiKey: '%orange_money.api_key%'
+            $apiSecret: '%orange_money.api_secret%'
+            $merchantKey: '%orange_money.merchant_key%'
+
+    App\Service\Payment\StripeService:
+        arguments:
+            $secretKey: '%stripe.secret_key%'
+            $publicKey: '%stripe.public_key%'
+
+    App\Controller\Api\PaymentController:
+        arguments:
+            $notchPayCallbackUrl: '%notchpay.callback_url%'
+            $notchPayHashKey: '%env(NOTCHPAY_HASH_KEY)%'
+
+    App\Service\Payment\NotchPayService:
+        arguments:
+            $publicKey: '%env(NOTCHPAY_PUBLIC_KEY)%'
+            $hashKey: '%env(NOTCHPAY_HASH_KEY)%'
+            $baseUrl: '%env(NOTCHPAY_API_URL)%'

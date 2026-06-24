@@ -9,14 +9,34 @@ use Kreait\Firebase\Messaging\Notification;
 class FirebaseService
 {
     private $messaging;
+    private $enabled;
 
-    public function __construct()
+    public function __construct(
+        private ?string $credentialsPath = null,
+        private ?string $projectId = null
+    ) {
+        $this->credentialsPath = $credentialsPath ?? $_ENV['FIREBASE_CREDENTIALS'] ?? null;
+        $this->projectId = $projectId ?? $_ENV['FIREBASE_PROJECT_ID'] ?? null;
+        $this->enabled = !empty($this->credentialsPath) && !empty($this->projectId);
+
+        if ($this->enabled && file_exists($this->credentialsPath)) {
+            try {
+                $firebase = (new Factory)->withServiceAccount($this->credentialsPath);
+                $this->messaging = $firebase->createMessaging();
+            } catch (\Exception $e) {
+                $this->enabled = false;
+            }
+        } else {
+            $this->enabled = false;
+        }
+    }
+
+    /**
+     * Check if Firebase is enabled
+     */
+    public function isEnabled(): bool
     {
-        $firebase = (new Factory)->withServiceAccount(
-            $_ENV['FIREBASE_CREDENTIALS'] ?? '/path/to/firebase-credentials.json'
-        );
-
-        $this->messaging = $firebase->createMessaging();
+        return $this->enabled;
     }
 
     /**
@@ -24,6 +44,13 @@ class FirebaseService
      */
     public function sendToDevice(string $token, string $title, string $body, array $data = []): array
     {
+        if (!$this->enabled) {
+            return [
+                'success' => false,
+                'error' => 'Firebase not configured',
+            ];
+        }
+
         try {
             $message = CloudMessage::withTarget('token', $token)
                 ->withNotification(Notification::create($title, $body))
@@ -48,6 +75,13 @@ class FirebaseService
      */
     public function sendMulticast(array $tokens, string $title, string $body, array $data = []): array
     {
+        if (!$this->enabled) {
+            return [
+                'success' => false,
+                'error' => 'Firebase not configured',
+            ];
+        }
+
         try {
             $message = CloudMessage::new()
                 ->withNotification(Notification::create($title, $body))
@@ -73,6 +107,13 @@ class FirebaseService
      */
     public function sendToTopic(string $topic, string $title, string $body, array $data = []): array
     {
+        if (!$this->enabled) {
+            return [
+                'success' => false,
+                'error' => 'Firebase not configured',
+            ];
+        }
+
         try {
             $message = CloudMessage::withTarget('topic', $topic)
                 ->withNotification(Notification::create($title, $body))
@@ -97,6 +138,13 @@ class FirebaseService
      */
     public function subscribeToTopic(string $token, string $topic): array
     {
+        if (!$this->enabled) {
+            return [
+                'success' => false,
+                'error' => 'Firebase not configured',
+            ];
+        }
+
         try {
             $this->messaging->subscribeToTopic($token, $topic);
 
@@ -116,6 +164,13 @@ class FirebaseService
      */
     public function unsubscribeFromTopic(string $token, string $topic): array
     {
+        if (!$this->enabled) {
+            return [
+                'success' => false,
+                'error' => 'Firebase not configured',
+            ];
+        }
+
         try {
             $this->messaging->unsubscribeFromTopic($token, $topic);
 

@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Domain\TransportScope;
 use App\Repository\TransportModeRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
@@ -26,6 +27,7 @@ class TransportMode
     #[ORM\Column(length: 50)]
     #[Assert\NotBlank(message: 'Code is required.')]
     #[Assert\Length(max: 50, maxMessage: 'Code cannot be longer than {{ limit }} characters.')]
+    #[Assert\Choice(choices: TransportScope::OFFER_TYPE_CODES, message: 'Invalid transport offer type. Only intercity bus and carpool are supported.')]
     private ?string $code = null;
 
     #[ORM\Column(length: 255, nullable: true)]

@@ -1,0 +1,56 @@
+# Douala Translation - TransCam (Duala)
+
+## Application
+app.name: TransCam
+app.tagline: Mote wo we Douala
+app.description: Ng Haas a mokolo baolo
+
+## Navigation
+nav.home: Nnam
+nav.search: Keum
+nav.bookings: Beye ane
+nav.agencies: Biyanga
+nav.contact: Poke
+nav.login: Fong
+nav.register: Nyang
+nav.logout: Tai
+nav.profile: Ngo
+nav.dashboard: Nnam bot
+
+## Authentication
+auth.login.title: Fong
+auth.login.email: Email
+auth.login.password: Mot
+auth.login.remember: Ngo nying
+auth.login.submit: Fong
+auth.register.title: Nyang
+auth.register.firstname: Yi a ngo
+auth.register.lastname: E ngo
+auth.register.phone: Phone
+auth.register.submit: Nyang
+
+## Trip Search
+search.title: Keum ayenda
+search.from: We
+search.to: Ku
+search.date: Nyo
+search.passengers: Bapame
+search.submit: Keum
+
+## Booking
+booking.title: Beye
+booking.reference: Reference
+booking.status.pending: Me nyang
+booking.status.confirmed: Me put
+booking.status.cancelled: Me puta
+booking.status.completed: Me nyang
+
+## Payment
+payment.title: Nliri
+payment.mtn: MTN
+payment.orange: Orange
+payment.card: Carte
+
+## Errors
+error.required: Nka do
+error.email: Email ma

@@ -70,7 +70,7 @@ class TicketController extends AbstractController
         }
 
         // Check ownership
-        if ($ticket->getUser() !== $user && !in_array('ROLE_ADMIN', $user->getRoles())) {
+        if ($ticket->getUser() !== $user && !$this->isGranted('ROLE_ADMIN')) {
             return $this->json([
                 'success' => false,
                 'message' => 'You do not have permission to view this ticket.'
@@ -79,7 +79,27 @@ class TicketController extends AbstractController
 
         return $this->json([
             'success' => true,
-            'data' => $this->serializeTicket($ticket)
+            'data' => [
+                'id' => $ticket->getId(),
+                'booking' => [
+                    'id' => $ticket->getBooking()->getId(),
+                    'reference' => $ticket->getBooking()->getReference(),
+                ],
+                'user' => [
+                    'id' => $ticket->getUser()->getId(),
+                    'name' => $ticket->getUser()->getFullName(),
+                ],
+                'qrCode' => $ticket->getQrCode(),
+                'qrCodeData' => $ticket->getQrCodeData(),
+                'status' => $ticket->getStatus(),
+                'seatNumber' => $ticket->getSeatNumber(),
+                'seatLabel' => $ticket->getQrCodeData()['seatLabel'] ?? (string) $ticket->getSeatNumber(),
+                'passengerName' => $ticket->getPassengerName(),
+                'passengerPhone' => $ticket->getPassengerPhone(),
+                'scannedAt' => $ticket->getScannedAt()?->format('Y-m-d H:i:s'),
+                'createdAt' => $ticket->getCreatedAt()->format('Y-m-d H:i:s'),
+                'updatedAt' => $ticket->getUpdatedAt()->format('Y-m-d H:i:s'),
+            ]
         ]);
     }
 
@@ -142,6 +162,7 @@ class TicketController extends AbstractController
             'qrCodeData' => $ticket->getQrCodeData(),
             'status' => $ticket->getStatus(),
             'seatNumber' => $ticket->getSeatNumber(),
+            'seatLabel' => $ticket->getQrCodeData()['seatLabel'] ?? (string) $ticket->getSeatNumber(),
             'passengerName' => $ticket->getPassengerName(),
             'passengerPhone' => $ticket->getPassengerPhone(),
             'scannedAt' => $ticket->getScannedAt()?->format('Y-m-d H:i:s'),

@@ -4,15 +4,17 @@ namespace App\Controller\Api;
 
 use App\Entity\User;
 use App\Repository\UserRepository;
+use App\Service\AuthCookieService;
+use App\Service\JWTService;
 use Doctrine\ORM\EntityManagerInterface;
-use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Annotation\Route;
-use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 class AuthController extends AbstractController
@@ -20,90 +22,111 @@ class AuthController extends AbstractController
     public function __construct(
         private EntityManagerInterface $entityManager,
         private UserPasswordHasherInterface $passwordHasher,
-        private JWTTokenManagerInterface $jwtTokenManager,
-        private TokenStorageInterface $tokenStorage,
+        private JWTService $jwtService,
         private ValidatorInterface $validator,
-        private UserRepository $userRepository
+        private UserRepository $userRepository,
+        private RateLimiterFactory $loginLimiter,
+        private RateLimiterFactory $registrationLimiter,
+        private Security $security,
+        private AuthCookieService $authCookieService,
     ) {
     }
 
     #[Route('/api/login', name: 'api_login', methods: ['POST'])]
     public function login(Request $request): JsonResponse
     {
+        // Rate limiting - max 10 attempts per 15 minutes per IP
+        $limiter = $this->loginLimiter->create($request->getClientIP());
+        $limit = $limiter->consume();
+        
+        if (!$limit->isAccepted()) {
+            return $this->json([
+                'error' => 'Trop de tentatives de connexion. Veuillez réessayer plus tard.',
+                'retry_after' => $limit->getRetryAfter()?->format('Y-m-d H:i:s')
+            ], Response::HTTP_TOO_MANY_REQUESTS);
+        }
+
         $data = json_decode($request->getContent(), true);
 
-        if (!isset($data['email']) || !isset($data['password'])) {
+        // Validate required fields
+        $requiredFields = ['email', 'password'];
+        $missingFields = [];
+        foreach ($requiredFields as $field) {
+            if (empty($data[$field] ?? null)) {
+                $missingFields[] = $field;
+            }
+        }
+        if (!empty($missingFields)) {
             return $this->json([
-                'success' => false,
-                'message' => 'Email and password are required.'
+                'error' => 'Champs manquants : ' . implode(', ', $missingFields)
             ], Response::HTTP_BAD_REQUEST);
         }
 
+        // Find user by email
         $user = $this->userRepository->findByEmail($data['email']);
 
         if (!$user) {
             return $this->json([
-                'success' => false,
-                'message' => 'Invalid credentials.'
-            ], Response::HTTP_UNAUTHORIZED);
+                'error' => 'Utilisateur non trouvé.'
+            ], Response::HTTP_NOT_FOUND);
         }
 
+        // Verify password
         if (!$this->passwordHasher->isPasswordValid($user, $data['password'])) {
             return $this->json([
-                'success' => false,
-                'message' => 'Invalid credentials.'
+                'error' => 'Mot de passe incorrect.'
             ], Response::HTTP_UNAUTHORIZED);
         }
-
-        $token = $this->jwtTokenManager->create($user);
 
         // Update last login
         $user->setLastLoginAt(new \DateTimeImmutable());
+        $this->entityManager->persist($user);
         $this->entityManager->flush();
 
-        return $this->json([
-            'success' => true,
-            'message' => 'Login successful.',
-            'data' => [
-                'token' => $token,
-                'user' => [
-                    'id' => $user->getId(),
-                    'email' => $user->getEmail(),
-                    'firstName' => $user->getFirstName(),
-                    'lastName' => $user->getLastName(),
-                    'fullName' => $user->getFullName(),
-                    'phone' => $user->getPhone(),
-                    'avatar' => $user->getAvatar(),
-                    'roles' => $user->getRoles(),
-                    'preferredLanguage' => $user->getPreferredLanguage(),
-                    'isVerified' => $user->isVerified(),
-                ]
-            ]
-        ]);
+        // Generate token pair
+        $tokenPair = $this->jwtService->generateTokenPair($user);
+
+        return $this->authCookieService->createAuthResponse([
+            'message' => 'Connexion réussie.',
+            'user' => $this->serializeUser($user),
+        ], Response::HTTP_OK, $tokenPair);
     }
 
     #[Route('/api/register', name: 'api_register', methods: ['POST'])]
     public function register(Request $request): JsonResponse
     {
+        // Rate limiting - max 5 registrations per hour per IP
+        $limiter = $this->registrationLimiter->create($request->getClientIP());
+        $limit = $limiter->consume();
+        
+        if (!$limit->isAccepted()) {
+            return $this->json([
+                'error' => 'Trop de tentatives d\'inscription. Veuillez réessayer plus tard.',
+                'retry_after' => $limit->getRetryAfter()?->format('Y-m-d H:i:s')
+            ], Response::HTTP_TOO_MANY_REQUESTS);
+        }
+
         $data = json_decode($request->getContent(), true);
 
         // Validate required fields
         $requiredFields = ['email', 'password', 'firstName', 'lastName'];
+        $missingFields = [];
         foreach ($requiredFields as $field) {
-            if (!isset($data[$field]) || empty($data[$field])) {
-                return $this->json([
-                    'success' => false,
-                    'message' => ucfirst($field) . ' is required.'
-                ], Response::HTTP_BAD_REQUEST);
+            if (empty($data[$field] ?? null)) {
+                $missingFields[] = $field;
             }
+        }
+        if (!empty($missingFields)) {
+            return $this->json([
+                'error' => 'Champs manquants : ' . implode(', ', $missingFields)
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         // Check if email already exists
         $existingUser = $this->userRepository->findByEmail($data['email']);
         if ($existingUser) {
             return $this->json([
-                'success' => false,
-                'message' => 'Email already exists.'
+                'error' => 'Un utilisateur avec cet email existe déjà.'
             ], Response::HTTP_CONFLICT);
         }
 
@@ -127,9 +150,7 @@ class AuthController extends AbstractController
                 $errorMessages[] = $error->getMessage();
             }
             return $this->json([
-                'success' => false,
-                'message' => 'Validation failed.',
-                'errors' => $errorMessages
+                'error' => 'Erreurs de validation : ' . implode(', ', $errorMessages)
             ], Response::HTTP_BAD_REQUEST);
         }
 
@@ -137,70 +158,41 @@ class AuthController extends AbstractController
         $this->entityManager->persist($user);
         $this->entityManager->flush();
 
-        // Generate token
-        $token = $this->jwtTokenManager->create($user);
+        // Generate token pair
+        $tokenPair = $this->jwtService->generateTokenPair($user);
 
-        return $this->json([
-            'success' => true,
-            'message' => 'Registration successful.',
-            'data' => [
-                'token' => $token,
-                'user' => [
-                    'id' => $user->getId(),
-                    'email' => $user->getEmail(),
-                    'firstName' => $user->getFirstName(),
-                    'lastName' => $user->getLastName(),
-                    'fullName' => $user->getFullName(),
-                    'phone' => $user->getPhone(),
-                    'avatar' => $user->getAvatar(),
-                    'roles' => $user->getRoles(),
-                    'preferredLanguage' => $user->getPreferredLanguage(),
-                    'isVerified' => $user->isVerified(),
-                ]
-            ]
-        ], Response::HTTP_CREATED);
+        return $this->authCookieService->createAuthResponse([
+            'message' => 'Utilisateur créé avec succès.',
+            'user' => $this->serializeUser($user),
+        ], Response::HTTP_CREATED, $tokenPair);
     }
 
     #[Route('/api/me', name: 'api_me', methods: ['GET'])]
     public function me(): JsonResponse
     {
-        $user = $this->getUser();
+        /** @var User $user */
+        $user = $this->security->getUser();
 
         if (!$user) {
             return $this->json([
-                'success' => false,
-                'message' => 'User not found.'
+                'error' => 'Utilisateur non trouvé'
             ], Response::HTTP_NOT_FOUND);
         }
 
         return $this->json([
-            'success' => true,
-            'data' => [
-                'id' => $user->getId(),
-                'email' => $user->getEmail(),
-                'firstName' => $user->getFirstName(),
-                'lastName' => $user->getLastName(),
-                'fullName' => $user->getFullName(),
-                'phone' => $user->getPhone(),
-                'avatar' => $user->getAvatar(),
-                'roles' => $user->getRoles(),
-                'preferredLanguage' => $user->getPreferredLanguage(),
-                'isVerified' => $user->isVerified(),
-                'createdAt' => $user->getCreatedAt()->format('Y-m-d H:i:s'),
-                'lastLoginAt' => $user->getLastLoginAt()?->format('Y-m-d H:i:s'),
-            ]
-        ]);
+            'user' => $this->serializeUser($user, true),
+        ], Response::HTTP_OK);
     }
 
     #[Route('/api/me', name: 'api_update_profile', methods: ['PUT'])]
     public function updateProfile(Request $request): JsonResponse
     {
-        $user = $this->getUser();
+        /** @var User $user */
+        $user = $this->security->getUser();
 
         if (!$user) {
             return $this->json([
-                'success' => false,
-                'message' => 'User not found.'
+                'error' => 'Utilisateur non trouvé'
             ], Response::HTTP_NOT_FOUND);
         }
 
@@ -219,6 +211,9 @@ class AuthController extends AbstractController
         if (isset($data['preferredLanguage'])) {
             $user->setPreferredLanguage($data['preferredLanguage']);
         }
+        if (isset($data['avatar'])) {
+            $user->setAvatar($data['avatar']);
+        }
 
         // Validate user
         $errors = $this->validator->validate($user);
@@ -228,19 +223,17 @@ class AuthController extends AbstractController
                 $errorMessages[] = $error->getMessage();
             }
             return $this->json([
-                'success' => false,
-                'message' => 'Validation failed.',
-                'errors' => $errorMessages
+                'error' => 'Erreurs de validation : ' . implode(', ', $errorMessages)
             ], Response::HTTP_BAD_REQUEST);
         }
 
-        // Save user
+        // Save changes
+        $this->entityManager->persist($user);
         $this->entityManager->flush();
 
         return $this->json([
-            'success' => true,
-            'message' => 'Profile updated successfully.',
-            'data' => [
+            'message' => 'Profil mis à jour avec succès.',
+            'user' => [
                 'id' => $user->getId(),
                 'email' => $user->getEmail(),
                 'firstName' => $user->getFirstName(),
@@ -250,31 +243,134 @@ class AuthController extends AbstractController
                 'avatar' => $user->getAvatar(),
                 'roles' => $user->getRoles(),
                 'preferredLanguage' => $user->getPreferredLanguage(),
-                'isVerified' => $user->isVerified(),
             ]
-        ]);
+        ], Response::HTTP_OK);
     }
 
-    #[Route('/api/token/refresh', name: 'api_refresh_token', methods: ['POST'])]
-    public function refreshToken(): JsonResponse
+    #[Route('/api/refresh-token', name: 'api_refresh_token', methods: ['POST'])]
+    public function refreshToken(Request $request): JsonResponse
     {
-        $user = $this->getUser();
+        $refreshToken = $this->authCookieService->getRefreshTokenFromRequest($request);
 
+        if (empty($refreshToken)) {
+            return $this->json([
+                'error' => 'Refresh token manquant'
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
+        try {
+            $decoded = $this->jwtService->decodeToken($refreshToken);
+            
+            // Verify that it's a refresh token
+            if (!isset($decoded['type']) || $decoded['type'] !== 'refresh') {
+                return $this->json([
+                    'error' => 'Token de type invalide'
+                ], Response::HTTP_UNAUTHORIZED);
+            }
+
+            // Get user
+            $user = $this->userRepository->find($decoded['user_id']);
+            if (!$user) {
+                return $this->json([
+                    'error' => 'Utilisateur non trouvé'
+                ], Response::HTTP_NOT_FOUND);
+            }
+
+            // Generate new token pair
+            $tokenPair = $this->jwtService->generateTokenPair($user);
+
+            return $this->authCookieService->createAuthResponse([
+                'message' => 'Tokens renouvelés avec succès',
+            ], Response::HTTP_OK, $tokenPair);
+
+        } catch (\Exception $e) {
+            return $this->json([
+                'error' => 'Refresh token invalide ou expiré'
+            ], Response::HTTP_UNAUTHORIZED);
+        }
+    }
+
+    #[Route('/api/validate-token', name: 'api_validate_token', methods: ['POST'])]
+    public function validateToken(Request $request): JsonResponse
+    {
+        // With Symfony security, the user is already authenticated if we reach here
+        /** @var User $user */
+        $user = $this->security->getUser();
+        
         if (!$user) {
             return $this->json([
-                'success' => false,
-                'message' => 'User not found.'
+                'error' => 'Utilisateur non trouvé'
+            ], Response::HTTP_NOT_FOUND);
+        }
+        
+        return $this->json([
+            'valid' => true,
+            'user' => [
+                'id' => $user->getId(),
+                'email' => $user->getEmail(),
+                'firstName' => $user->getFirstName(),
+                'lastName' => $user->getLastName(),
+                'roles' => $user->getRoles(),
+            ]
+        ], Response::HTTP_OK);
+    }
+
+    #[Route('/api/logout', name: 'api_logout', methods: ['POST'])]
+    public function logout(Request $request): JsonResponse
+    {
+        $response = $this->json([
+            'message' => 'Déconnexion réussie',
+        ], Response::HTTP_OK);
+
+        return $this->authCookieService->clearTokens($response);
+    }
+
+    private function serializeUser(User $user, bool $extended = false): array
+    {
+        $data = [
+            'id' => $user->getId(),
+            'email' => $user->getEmail(),
+            'firstName' => $user->getFirstName(),
+            'lastName' => $user->getLastName(),
+            'fullName' => $user->getFullName(),
+            'phone' => $user->getPhone(),
+            'avatar' => $user->getAvatar(),
+            'roles' => $user->getRoles(),
+            'preferredLanguage' => $user->getPreferredLanguage(),
+            'isVerified' => $user->isVerified(),
+        ];
+
+        if ($extended) {
+            $data['createdAt'] = $user->getCreatedAt()->format('Y-m-d H:i:s');
+            $data['lastLoginAt'] = $user->getLastLoginAt()?->format('Y-m-d H:i:s');
+        } else {
+            $data['lastLoginAt'] = $user->getLastLoginAt()?->format('Y-m-d H:i:s');
+        }
+
+        return $data;
+    }
+
+    #[Route('/api/heartbeat', name: 'api_heartbeat', methods: ['POST'])]
+    public function heartbeat(Request $request): JsonResponse
+    {
+        // Get user from Symfony security
+        /** @var User $user */
+        $user = $this->security->getUser();
+        
+        if (!$user) {
+            return $this->json([
+                'error' => 'Utilisateur non trouvé'
             ], Response::HTTP_NOT_FOUND);
         }
 
-        $token = $this->jwtTokenManager->create($user);
+        // Update last login to track online status
+        $user->setLastLoginAt(new \DateTimeImmutable());
+        $this->entityManager->persist($user);
+        $this->entityManager->flush();
 
         return $this->json([
-            'success' => true,
-            'message' => 'Token refreshed successfully.',
-            'data' => [
-                'token' => $token
-            ]
-        ]);
+            'ok' => true,
+            'lastLoginAt' => $user->getLastLoginAt()?->format('Y-m-d H:i:s'),
+        ], Response::HTTP_OK);
     }
 }
