@@ -474,11 +474,19 @@ class TripController extends AbstractController
     #[Route('/api/trips/carpool', name: 'api_trip_carpool', methods: ['GET'])]
     public function carpoolTrips(): JsonResponse
     {
-        $trips = $this->tripRepository->findCarpoolTrips();
+        try {
+            $trips = $this->tripRepository->findCarpoolTrips();
+        } catch (\Exception $e) {
+            return $this->json(['success' => false, 'message' => $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
 
         $data = [];
         foreach ($trips as $trip) {
-            $data[] = $this->serializeTrip($trip);
+            try {
+                $data[] = $this->serializeCarpoolTripSimple($trip);
+            } catch (\Exception) {
+                continue;
+            }
         }
 
         return $this->json([
@@ -486,6 +494,38 @@ class TripController extends AbstractController
             'data' => $data,
             'meta' => ['total' => count($data)]
         ]);
+    }
+
+    private function serializeCarpoolTripSimple(Trip $trip): array
+    {
+        $driver = $trip->getVehicle()?->getDriver();
+
+        return [
+            'id' => $trip->getId(),
+            'departureCity' => $trip->getDepartureCity() ?? '?',
+            'arrivalCity' => $trip->getArrivalCity() ?? '?',
+            'departureAddress' => $trip->getDepartureAddress() ?? '',
+            'arrivalAddress' => $trip->getArrivalAddress() ?? '',
+            'departureTime' => $trip->getDepartureTime()?->format('Y-m-d H:i:s'),
+            'price' => $trip->getPrice(),
+            'availableSeats' => $trip->getAvailableSeats(),
+            'totalSeats' => $trip->getTotalSeats(),
+            'status' => $trip->getStatus(),
+            'duration' => $trip->getDuration(),
+            'driver' => $driver ? [
+                'id' => $driver->getId(),
+                'fullName' => trim($driver->getFirstName() . ' ' . $driver->getLastName()),
+            ] : null,
+            'vehicle' => [
+                'id' => $trip->getVehicle()?->getId(),
+                'brand' => $trip->getVehicle()?->getBrand(),
+                'model' => $trip->getVehicle()?->getModel(),
+                'driver' => $driver ? [
+                    'id' => $driver->getId(),
+                    'fullName' => trim($driver->getFirstName() . ' ' . $driver->getLastName()),
+                ] : null,
+            ],
+        ];
     }
 
     private function serializeTrip(Trip $trip): array
@@ -533,8 +573,8 @@ class TripController extends AbstractController
             'arrivalLongitude' => $trip->getArrivalLongitude(),
             'currentLatitude' => $trip->getCurrentLatitude(),
             'currentLongitude' => $trip->getCurrentLongitude(),
-            'createdAt' => $trip->getCreatedAt()->format('Y-m-d H:i:s'),
-            'updatedAt' => $trip->getUpdatedAt()->format('Y-m-d H:i:s'),
+            'createdAt' => $trip->getCreatedAt()?->format('Y-m-d H:i:s'),
+            'updatedAt' => $trip->getUpdatedAt()?->format('Y-m-d H:i:s'),
         ];
     }
 }

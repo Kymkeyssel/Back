@@ -7,6 +7,7 @@ use App\Entity\Trip;
 use App\Repository\TransportModeRepository;
 use App\Repository\TripRepository;
 use App\Repository\VehicleRepository;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -69,87 +70,130 @@ class CarpoolController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function createOffer(Request $request): JsonResponse
     {
-        $user = $this->getUser();
-        $data = json_decode($request->getContent(), true) ?? [];
+        try {
+            $user = $this->getUser();
+            $data = json_decode($request->getContent(), true) ?? [];
 
-        $vehicle = null;
-        if (!empty($data['vehicleId'])) {
-            $vehicle = $this->vehicleRepository->find($data['vehicleId']);
-        } else {
-            $vehicles = $this->vehicleRepository->findBy(['driver' => $user, 'type' => TransportScope::CARPOOL_VEHICLE_TYPE]);
-            $vehicle = $vehicles[0] ?? null;
-        }
+            $vehicle = null;
+            if (!empty($data['vehicleId'])) {
+                $vehicle = $this->vehicleRepository->find($data['vehicleId']);
+            } else {
+                $vehicles = $this->vehicleRepository->findBy(['driver' => $user, 'type' => TransportScope::CARPOOL_VEHICLE_TYPE]);
+                $vehicle = $vehicles[0] ?? null;
+            }
 
-        if (!$vehicle) {
-            $agency = $this->entityManager->getRepository(\App\Entity\Agency::class)->findOneBy([]);
-            if (!$agency) {
+            if (!$vehicle) {
+                $agency = $this->entityManager->getRepository(\App\Entity\Agency::class)->findOneBy([]);
+                if (!$agency) {
+                    return $this->json([
+                        'success' => false,
+                        'message' => 'Aucune agence trouvée dans la base de données.',
+                    ], Response::HTTP_INTERNAL_SERVER_ERROR);
+                }
+
+                $vehicle = new \App\Entity\Vehicle();
+                $vehicle->setDriver($user);
+                $vehicle->setAgency($agency);
+                $vehicle->setType(TransportScope::CARPOOL_VEHICLE_TYPE);
+                $vehicle->setBrand('Toyota');
+                $vehicle->setModel('Corolla');
+                $vehicle->setPlateNumber('LT-' . strtoupper(bin2hex(random_bytes(4))) . '-CP');
+                $vehicle->setTotalSeats(4);
+                $vehicle->setIsActive(true);
+
+                $this->entityManager->persist($vehicle);
+                try {
+                    $this->entityManager->flush();
+                } catch (\Doctrine\DBAL\Exception\UniqueConstraintViolationException $e) {
+                    $vehicle->setPlateNumber('LT-' . strtoupper(bin2hex(random_bytes(4))) . '-CP');
+                    $this->entityManager->flush();
+                }
+            }
+
+            if ($vehicle->getDriver() !== $user) {
                 return $this->json([
                     'success' => false,
-                    'message' => 'No active agency found in the database to link the vehicle.',
-                ], Response::HTTP_INTERNAL_SERVER_ERROR);
+                    'message' => 'Ce véhicule ne vous appartient pas.',
+                ], Response::HTTP_BAD_REQUEST);
             }
 
-            $vehicle = new \App\Entity\Vehicle();
-            $vehicle->setDriver($user);
-            $vehicle->setAgency($agency);
-            $vehicle->setType(TransportScope::CARPOOL_VEHICLE_TYPE);
-            $vehicle->setBrand('Toyota');
-            $vehicle->setModel('Corolla');
-            $vehicle->setPlateNumber('LT-' . rand(1000, 9999) . '-CP');
-            $vehicle->setTotalSeats(4);
-            $vehicle->setIsActive(true);
+            $mode = $this->transportModeRepository->findOneBy(['code' => TransportScope::CARPOOL]);
+            if (!$mode) {
+                return $this->json(['success' => false, 'message' => 'Mode covoiturage non configuré.'], Response::HTTP_NOT_FOUND);
+            }
 
-            $this->entityManager->persist($vehicle);
-            $this->entityManager->flush();
-        }
+            $required = ['departureCity', 'arrivalCity', 'departureAddress', 'arrivalAddress', 'departureTime', 'price', 'totalSeats'];
+            foreach ($required as $field) {
+                if (empty($data[$field])) {
+                    return $this->json(['success' => false, 'message' => ucfirst($field) . ' est requis.'], Response::HTTP_BAD_REQUEST);
+                }
+            }
 
-        if ($vehicle->getDriver() !== $user) {
+            $trip = new Trip();
+            $trip->setAgency($vehicle->getAgency());
+            $trip->setVehicle($vehicle);
+            $trip->setTransportMode($mode);
+            $trip->setDepartureCity($data['departureCity']);
+            $trip->setArrivalCity($data['arrivalCity']);
+            $trip->setDepartureAddress($data['departureAddress']);
+            $trip->setArrivalAddress($data['arrivalAddress']);
+            $trip->setDepartureTime(new \DateTimeImmutable($data['departureTime']));
+            $trip->setArrivalTime(isset($data['arrivalTime']) ? new \DateTimeImmutable($data['arrivalTime']) : null);
+            $trip->setPrice((string) $data['price']);
+            $trip->setTotalSeats((int) $data['totalSeats']);
+            $trip->setAvailableSeats((int) $data['totalSeats']);
+            $trip->setStatus('scheduled');
+
+            $errors = $this->validator->validate($trip);
+            if (count($errors) > 0) {
+                $messages = [];
+                foreach ($errors as $e) {
+                    $messages[] = $e->getMessage();
+                }
+                return $this->json(['success' => false, 'message' => 'Validation échouée.', 'errors' => $messages], Response::HTTP_BAD_REQUEST);
+            }
+
+            $this->entityManager->persist($trip);
+
+            try {
+                $this->entityManager->flush();
+            } catch (UniqueConstraintViolationException $e) {
+                $this->syncTripSequence();
+
+                $this->entityManager->clear();
+                $agency = $this->entityManager->getRepository(\App\Entity\Agency::class)->find($vehicle->getAgency()->getId());
+                $vehicle = $this->entityManager->getRepository(\App\Entity\Vehicle::class)->find($vehicle->getId());
+                $mode = $this->entityManager->getRepository(\App\Entity\TransportMode::class)->find($mode->getId());
+                $freshTrip = new Trip();
+                $freshTrip->setAgency($agency);
+                $freshTrip->setVehicle($vehicle);
+                $freshTrip->setTransportMode($mode);
+                $freshTrip->setDepartureCity($data['departureCity']);
+                $freshTrip->setArrivalCity($data['arrivalCity']);
+                $freshTrip->setDepartureAddress($data['departureAddress']);
+                $freshTrip->setArrivalAddress($data['arrivalAddress']);
+                $freshTrip->setDepartureTime(new \DateTimeImmutable($data['departureTime']));
+                $freshTrip->setArrivalTime(isset($data['arrivalTime']) ? new \DateTimeImmutable($data['arrivalTime']) : null);
+                $freshTrip->setPrice((string) $data['price']);
+                $freshTrip->setTotalSeats((int) $data['totalSeats']);
+                $freshTrip->setAvailableSeats((int) $data['totalSeats']);
+                $freshTrip->setStatus('scheduled');
+                $this->entityManager->persist($freshTrip);
+                $this->entityManager->flush();
+                $trip = $freshTrip;
+            }
+
+            return $this->json([
+                'success' => true,
+                'message' => 'Offre de covoiturage publiée !',
+                'data' => $this->serializeCarpoolTrip($trip),
+            ], Response::HTTP_CREATED);
+        } catch (\Exception $e) {
             return $this->json([
                 'success' => false,
-                'message' => 'The assigned vehicle does not belong to you.',
-            ], Response::HTTP_BAD_REQUEST);
+                'message' => 'Erreur lors de la création de l\'offre : ' . $e->getMessage(),
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
-
-        $mode = $this->transportModeRepository->findOneBy(['code' => TransportScope::CARPOOL]);
-        if (!$mode) {
-            return $this->json(['success' => false, 'message' => 'Carpool mode not configured.'], Response::HTTP_NOT_FOUND);
-        }
-
-        $required = ['departureCity', 'arrivalCity', 'departureAddress', 'arrivalAddress', 'departureTime', 'price', 'totalSeats'];
-        foreach ($required as $field) {
-            if (empty($data[$field])) {
-                return $this->json(['success' => false, 'message' => ucfirst($field) . ' is required.'], Response::HTTP_BAD_REQUEST);
-            }
-        }
-
-        $trip = new Trip();
-        $trip->setAgency($vehicle->getAgency());
-        $trip->setVehicle($vehicle);
-        $trip->setTransportMode($mode);
-        $trip->setDepartureCity($data['departureCity']);
-        $trip->setArrivalCity($data['arrivalCity']);
-        $trip->setDepartureAddress($data['departureAddress']);
-        $trip->setArrivalAddress($data['arrivalAddress']);
-        $trip->setDepartureTime(new \DateTimeImmutable($data['departureTime']));
-        $trip->setArrivalTime(isset($data['arrivalTime']) ? new \DateTimeImmutable($data['arrivalTime']) : null);
-        $trip->setPrice((string) $data['price']);
-        $trip->setTotalSeats((int) $data['totalSeats']);
-        $trip->setAvailableSeats((int) $data['totalSeats']);
-        $trip->setStatus('scheduled');
-
-        $errors = $this->validator->validate($trip);
-        if (count($errors) > 0) {
-            return $this->json(['success' => false, 'message' => 'Validation failed.'], Response::HTTP_BAD_REQUEST);
-        }
-
-        $this->entityManager->persist($trip);
-        $this->entityManager->flush();
-
-        return $this->json([
-            'success' => true,
-            'message' => 'Carpool offer published.',
-            'data' => $this->serializeCarpoolTrip($trip),
-        ], Response::HTTP_CREATED);
     }
 
     #[Route('/my-offers', name: 'api_carpool_my_offers', methods: ['GET'])]
@@ -190,5 +234,11 @@ class CarpoolController extends AbstractController
                 'model' => $trip->getVehicle()?->getModel(),
             ],
         ];
+    }
+
+    private function syncTripSequence(): void
+    {
+        $conn = $this->entityManager->getConnection();
+        $conn->executeStatement("SELECT setval('trips_id_seq', COALESCE((SELECT MAX(id) FROM trips), 0) + 1, false)");
     }
 }
